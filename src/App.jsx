@@ -66,6 +66,19 @@ function parseAlarms(str) {
 const ALARMS = parseAlarms(ALARM_STR);
 const LONGEST_ALARM = ALARMS.reduce((max, a) => (a.durationSec > (max ? max.durationSec : -1) ? a : max), null);
 
+// ---------------- Reboot log จริงจาก grid_adjust_run_log.csv — ใช้ตรวจสอบความน่าเชื่อถือของระยะเวลา fault ----------------
+// สมมติฐาน: ถ้าพบ "System Reboot" แทรกอยู่กลางช่วงเวลาที่ alarm ยังนับว่า "กำลังเกิดอยู่" แปลว่าระบบน่าจะกลับมาทำงาน/สื่อสารได้ปกติแล้วจริงๆ
+// ระยะเวลาที่ alarm บันทึกไว้จึงอาจไม่ต่อเนื่องจริง (alarm ค้างสถานะไม่ได้ปิด event ตามเวลาจริง) — เป็นข้อสมมติฐานที่มีหลักฐานสนับสนุน ไม่ใช่ข้อสรุปยืนยัน 100%
+const REBOOT_STR = "20231227160919|20231227183627|20231228093606|20231228111622|20240205152756|20240328135001|20240328140255|20240328140518|20240328145805|20240418063001|20240505142739|20240515104108|20240620110318|20240704015120|20241028140546|20241203110732|20241223063531|20250102094206|20250102101152|20250103081507|20250301160339|20250302041001|20250302160306|20250302185827|20250303161135|20250304164054|20250306064540|20250306125433|20250427080648|20250529135900|20250604061120|20250703125342|20250707224038|20251013164839|20251016150638|20251108162140|20251108173134|20251124132528|20260215172847|20260316162331|20260318003312|20260406104108|20260406145931|20260407125229|20260407125827|20260409165625|20260417144633|20260417154712|20260419185119|20260419230927|20260420032751|20260426083205|20260502055140|20260504155933|20260517093213|20260524134310|20260528091053|20260530142535|20260530143227|20260711190845|20260713192015|20260715113721|20260823131053|20260905114004";
+const REBOOTS = REBOOT_STR.split("|").filter(Boolean).map((s) => new Date(
+  +s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14)
+));
+function alarmSuspect(a) {
+  // reboot ที่เกิดขึ้นระหว่างกลางช่วง start-end แบบเคร่งครัด (ไม่นับ reboot ที่ boundary ซึ่งเป็นเรื่องปกติตอน event ปิด)
+  return REBOOTS.some((r) => r.getTime() > a.start.getTime() && r.getTime() < a.end.getTime());
+}
+const ALARM_SUSPECT_NOTE = "ข้อสมมติฐาน: พบ System Reboot แทรกอยู่กลางช่วงเวลานี้ (จาก grid_adjust_run_log.csv) แปลว่าระบบน่าจะกลับมาทำงาน/สื่อสารได้ปกติแล้วจริงๆ ก่อนเวลาสิ้นสุดที่บันทึกไว้ ระยะเวลาที่แสดงจึงอาจไม่ต่อเนื่องจริง (เป็นไปได้ว่า alarm ค้างสถานะไม่ได้ปิด event ตามเวลาจริง) — ควรตรวจสอบกับผู้ติดตั้งเพื่อยืนยัน ไม่ใช่ข้อสรุปที่ยืนยันได้ 100% จากข้อมูลนี้อย่างเดียว";
+
 function alarmsOverlapping(startDate, endDate) {
   const s = startDate.getTime(), e = endDate.getTime();
   return ALARMS.filter((a) => a.start.getTime() <= e && a.end.getTime() >= s);
@@ -826,6 +839,14 @@ function DayView({ hourlyData, day, onBack }) {
     return dayAlarms.filter((a) => a.start.getTime() <= hEnd.getTime() && a.end.getTime() >= hStart.getTime());
   }, [selectedHour, dayAlarms, day.key]);
 
+  const faultRanges = useMemo(() => {
+    return dayAlarms.map((a) => {
+      const startH = a.start.getTime() <= dayStart.getTime() ? 0 : a.start.getHours();
+      const endH = a.end.getTime() >= dayEnd.getTime() ? 23 : a.end.getHours();
+      return { x1: `${pad2(startH)}:00`, x2: `${pad2(endH)}:00` };
+    });
+  }, [dayAlarms, day.key]);
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
       <div className="xl:col-span-3">
@@ -862,14 +883,22 @@ function DayView({ hourlyData, day, onBack }) {
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="hour" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={{ stroke: "var(--border)" }} tickLine={false} interval={1} />
                 <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} unit=" kW" width={60} />
-                <Tooltip content={<ThemedTooltip unit="kW" />} />
+                <Tooltip content={<HourlyFaultTooltip dayAlarms={dayAlarms} day={day} />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: "var(--text-muted)" }} />
                 <ReferenceArea x1="05:00" x2="19:00" fill="var(--accent-orange)" fillOpacity={0.05} stroke="none" />
+                {faultRanges.map((r, i) => (
+                  <ReferenceArea key={i} x1={r.x1} x2={r.x2} fill="var(--accent-red)" fillOpacity={0.14} stroke="var(--accent-red)" strokeOpacity={0.4} strokeDasharray="2 2" />
+                ))}
                 <Area type="monotone" dataKey="actual" name="ผลิตจริง" stroke="var(--accent-orange)" fill="url(#actualFillD)" strokeWidth={2} />
                 <Line type="monotone" dataKey="design" name="Design" stroke="var(--accent-green)" strokeDasharray="5 4" strokeWidth={1.5} dot={false} />
                 <Line type="monotone" dataKey="consumption" name="โหลด (เป้าหมาย)" stroke="var(--accent-cyan)" strokeWidth={2} dot={false} />
               </ComposedChart>
             </ResponsiveContainer>
+            {dayAlarms.length > 0 && (
+              <div className="text-[10px] mt-1" style={{ color: "var(--accent-red)" }}>
+                ▨ พื้นที่คาดสีแดงบนกราฟ = ช่วงเวลาที่เกิด fault จริง — เอาเมาส์ไปชี้เพื่อดูรายละเอียด
+              </div>
+            )}
 
             <div className="mt-3">
               <div className="text-[11px] mb-1 flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
@@ -929,6 +958,7 @@ function DayView({ hourlyData, day, onBack }) {
 
 function FaultRow({ alarm }) {
   const info = ALARM_NAME_INFO[alarm.code] || { th: alarm.code, fix: "" };
+  const suspect = alarmSuspect(alarm);
   return (
     <div className="text-xs mb-2 pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
       <div className="mono" style={{ color: "var(--accent-red)" }}>
@@ -938,6 +968,9 @@ function FaultRow({ alarm }) {
       <div style={{ color: "var(--text-muted)" }}>
         {fmtAlarmTime(alarm.start)} → {fmtAlarmTime(alarm.end)} (ระยะเวลา {fmtDuration(alarm.durationSec)})
       </div>
+      {suspect && (
+        <div className="mt-1 text-[11px]" style={{ color: "var(--accent-orange)" }}>⚠ {ALARM_SUSPECT_NOTE}</div>
+      )}
       {info.fix && <div className="mt-1" style={{ color: "var(--accent-green)" }}>แนวทางแก้ไข: <span style={{ color: "var(--text-muted)" }}>{info.fix}</span></div>}
     </div>
   );
@@ -1044,8 +1077,13 @@ function FaultLogSection({ view, selYear, selMonth, selDay, yearDays }) {
             {fmtAlarmTime(LONGEST_ALARM.start)} → {fmtAlarmTime(LONGEST_ALARM.end)} (ยาวนาน {fmtDuration(LONGEST_ALARM.durationSec)})
           </div>
           <div className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-            ช่วงเวลานี้ตรงกับที่ข้อมูลการผลิตของ inverter ตัวนี้ผิดปกติ/ขาดหายไปในช่วง ธ.ค. 2566 – มี.ค. 2567 ที่พบตอนวิเคราะห์ CSV — ควรตรวจสอบเบรกเกอร์/จุดเชื่อมต่อกริดของ inverter ตัวนี้เป็นพิเศษ หากยังไม่ได้แก้ไข
+            ช่วงเวลานี้ตรงกับที่ข้อมูลการผลิตของ inverter ตัวนี้ผิดปกติ/ขาดหายไปในช่วง ธ.ค. 2566 – มี.ค. 2567 ที่พบตอนวิเคราะห์ CSV ควรตรวจสอบเบรกเกอร์/จุดเชื่อมต่อกริดของ inverter ตัวนี้เป็นพิเศษ หากยังไม่ได้แก้ไข
           </div>
+          {alarmSuspect(LONGEST_ALARM) && (
+            <div className="text-[11px] mt-2 pt-2" style={{ color: "var(--accent-orange)", borderTop: "1px solid rgba(240,104,122,0.25)" }}>
+              ⚠ {ALARM_SUSPECT_NOTE}
+            </div>
+          )}
         </div>
       )}
 
@@ -1058,6 +1096,7 @@ function FaultLogSection({ view, selYear, selMonth, selDay, yearDays }) {
               const info = ALARM_NAME_INFO[g.code] || { th: g.code, fix: "" };
               const key = `${g.dateKey}-${g.code}-${g.device}-${i}`;
               const isExpanded = expandedKey === key;
+              const suspect = REBOOTS.some((r) => r.getTime() > g.first.getTime() && r.getTime() < g.last.getTime());
               return (
                 <div key={key} className="rounded-xl p-3 mb-2" style={{ background: "var(--panel-2)", border: "1px solid var(--border)" }}>
                   <div className="flex items-center justify-between gap-2 cursor-pointer" onClick={() => setExpandedKey(isExpanded ? null : key)}>
@@ -1065,6 +1104,7 @@ function FaultLogSection({ view, selYear, selMonth, selDay, yearDays }) {
                       <span className="mono" style={{ color: g.sev === "Major" ? "var(--accent-red)" : "var(--accent-orange)" }}>{g.sev}</span>
                       <span style={{ color: "var(--text)" }}> · {info.th}</span>
                       <span style={{ color: "var(--text-muted)" }}> · Inverter COM1-{g.device} · {fmtAlarmTime(g.first)}</span>
+                      {suspect && <span className="ml-1" style={{ color: "var(--accent-orange)" }} title={ALARM_SUSPECT_NOTE}>⚠ น่าสงสัย</span>}
                     </div>
                     <div className="text-[11px] shrink-0" style={{ color: "var(--text-muted)" }}>
                       {g.count > 1 ? `${g.count} ครั้ง · ` : ""}รวม {fmtDuration(g.totalSec)} {isExpanded ? "▲" : "▼"}
@@ -1073,6 +1113,7 @@ function FaultLogSection({ view, selYear, selMonth, selDay, yearDays }) {
                   {isExpanded && (
                     <div className="text-xs mt-2 pt-2" style={{ borderTop: "1px solid var(--border)", color: "var(--text-muted)" }}>
                       <div>ช่วงเวลา: {fmtAlarmTime(g.first)} → {fmtAlarmTime(g.last)}</div>
+                      {suspect && <div className="mt-1" style={{ color: "var(--accent-orange)" }}>⚠ {ALARM_SUSPECT_NOTE}</div>}
                       <div className="mt-1" style={{ color: "var(--accent-green)" }}>แนวทางแก้ไข: <span style={{ color: "var(--text-muted)" }}>{info.fix}</span></div>
                     </div>
                   )}
@@ -1153,6 +1194,38 @@ function ThemedTooltip({ active, payload, label, unit }) {
           <span className="mono" style={{ color: "var(--text)" }}>{p.value}{unit}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function HourlyFaultTooltip({ active, payload, label, dayAlarms, day }) {
+  if (!active || !payload || !payload.length) return null;
+  const h = parseInt(String(label).split(":")[0], 10);
+  const hStart = new Date(day.year, day.month, day.day, h, 0, 0);
+  const hEnd = new Date(day.year, day.month, day.day, h, 59, 59);
+  const hourAlarms = (dayAlarms || []).filter((a) => a.start.getTime() <= hEnd.getTime() && a.end.getTime() >= hStart.getTime());
+  return (
+    <div className="panel px-3 py-2 text-xs" style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.4)", maxWidth: 260 }}>
+      <div className="mono mb-1" style={{ color: "var(--text-muted)" }}>{label}</div>
+      {payload.map((p, i) => p.value != null && (
+        <div key={i} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.stroke || p.fill }} />
+          <span style={{ color: "var(--text-muted)" }}>{p.name}:</span>
+          <span className="mono" style={{ color: "var(--text)" }}>{p.value}kW</span>
+        </div>
+      ))}
+      {hourAlarms.length > 0 && (
+        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+          {hourAlarms.map((a, i) => {
+            const info = ALARM_NAME_INFO[a.code] || { th: a.code };
+            return (
+              <div key={i} style={{ color: "var(--accent-red)" }}>
+                ⚠ {info.th}{alarmSuspect(a) ? " · น่าสงสัย" : ""}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
