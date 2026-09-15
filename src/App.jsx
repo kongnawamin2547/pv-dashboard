@@ -250,6 +250,7 @@ export default function PVDashboard() {
   const [capacity, setCapacity] = useState(PROJECT_INFO.capacityKWp);
   const [annualYield, setAnnualYield] = useState(PROJECT_INFO.annualYield);
   const [annualUserKwh, setAnnualUserKwh] = useState(MONTHLY_USER_KWH_REPORT.reduce((s, v) => s + v, 0));
+  const [electricityRate, setElectricityRate] = useState(4.0); // บาท/kWh — ปรับได้เอง
   const [showSettings, setShowSettings] = useState(false);
 
   const [view, setView] = useState("year"); // 'year' | 'month' | 'day'
@@ -304,6 +305,7 @@ export default function PVDashboard() {
       { label: "Performance Ratio", value: hasData ? fmt(t.pr, 1) : "—", unit: "%", accent: "violet", sub: "ประมาณจาก Actual/Design" },
       { label: "Availability", value: hasData ? fmt(t.availability, 1) : "—", unit: "%", accent: "teal", sub: "ประมาณ: มีผลิตไฟหรือไม่" },
       { label: "Self-consumption", value: hasData ? fmt(selfC, 1) : "—", unit: "%", accent: "green", sub: "เทียบกับโหลดเป้าหมาย (ไม่ใช่วัดจริง)" },
+      { label: "ค่าไฟที่ประหยัดได้", value: hasData ? fmt(t.actual * electricityRate, 0) : "—", unit: "บาท", accent: "gold", sub: `ที่ ${fmt(electricityRate, 2)} บาท/kWh (ปรับได้)` },
     ];
   } else {
     const a = scopeAgg;
@@ -317,11 +319,12 @@ export default function PVDashboard() {
       { label: "Performance Ratio เฉลี่ย", value: a.avgPR == null ? "—" : fmt(a.avgPR, 1), unit: "%", accent: "violet", sub: "ประมาณจาก Actual/Design" },
       { label: "Availability เฉลี่ย", value: a.avgAvailability == null ? "—" : fmt(a.avgAvailability, 1), unit: "%", accent: "teal", sub: "ประมาณ: สัดส่วนวันที่มีผลิตไฟ" },
       { label: "Self-consumption", value: selfC == null ? "—" : fmt(selfC, 1), unit: "%", accent: "green", sub: "เทียบกับโหลดเป้าหมาย (ไม่ใช่วัดจริง)" },
+      { label: "ค่าไฟที่ประหยัดได้สะสม", value: fmt(a.actualSum * electricityRate, 0), unit: "บาท", accent: "gold", sub: `ที่ ${fmt(electricityRate, 2)} บาท/kWh (ปรับได้)` },
     ];
   }
 
   const accentVar = {
-    amber: "var(--accent-orange)", green: "var(--accent-green)", red: "var(--accent-red)",
+    amber: "var(--accent-orange)", green: "var(--accent-green)", red: "var(--accent-red)", gold: "var(--accent-gold)",
     cyan: "var(--accent-cyan)", violet: "var(--accent-violet)", teal: "var(--accent-teal)",
   };
 
@@ -332,7 +335,7 @@ export default function PVDashboard() {
         :root {
           --bg: #0A1420; --panel: #101E30; --panel-2: #0D1A2A; --border: #1D3049;
           --text: #E9EFF7; --text-muted: #7C8CA6;
-          --accent-orange: #FF7A29; --accent-cyan: #4FC3E0;
+          --accent-orange: #FF7A29; --accent-cyan: #4FC3E0; --accent-gold: #E8C547;
           --accent-green: #34D399; --accent-red: #F0687A; --accent-violet: #A78BFA; --accent-teal: #5EEAD4;
         }
         .pv-root, .pv-root * { font-family: 'IBM Plex Sans Thai', 'IBM Plex Sans', sans-serif; }
@@ -393,7 +396,12 @@ export default function PVDashboard() {
               <input type="number" min="0" step="10" value={annualUserKwh} onChange={(e) => setAnnualUserKwh(Math.max(0, Number(e.target.value) || 0))}
                 className="mono w-24 px-2 py-1 rounded-lg" style={{ background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)" }} />
             </label>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>ค่าเริ่มต้นดึงจากผลจำลอง PVsyst (แบบมีแบตเตอรี่) — พลังงานผลิตจริงมาจาก CSV ของ inverter เสมอ ไม่ถูกปรับตามค่านี้</span>
+            <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+              อัตราค่าไฟ (บาท/kWh)
+              <input type="number" min="0" step="0.01" value={electricityRate} onChange={(e) => setElectricityRate(Math.max(0, Number(e.target.value) || 0))}
+                className="mono w-24 px-2 py-1 rounded-lg" style={{ background: "var(--panel-2)", border: "1px solid var(--border)", color: "var(--text)" }} />
+            </label>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>ค่าเริ่มต้นดึงจากผลจำลอง PVsyst (แบบมีแบตเตอรี่) — พลังงานผลิตจริงมาจาก CSV ของ inverter เสมอ ไม่ถูกปรับตามค่านี้ · อัตราค่าไฟตั้งต้น 4.0 บาท/kWh (ค่าเฉลี่ยโดยประมาณรวม Ft+VAT) ปรับให้ตรงกับใบแจ้งหนี้จริงได้</span>
           </div>
         )}
 
@@ -499,7 +507,7 @@ export default function PVDashboard() {
         </div>
 
         {/* ---------- KPI strip ---------- */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
           {kpis.map((k, i) => (
             <div key={i} className="panel kpi-card p-4">
               <div className="kpi-bar" style={{ background: accentVar[k.accent] }} />
