@@ -130,9 +130,9 @@ const round1 = (n) => Math.round(n * 10) / 10;
 const MONTHS_TH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const MONTHS_TH_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
-const TARGET_PR = 82.51; // % — PR design จากรายงาน PVsyst (LTK Project, ฉบับแก้ไขแบตเตอรี่)
+const TARGET_PR = 79.34; // % — PR design จากรายงาน PVsyst (LTK Project, ฉบับ 8 ยูนิตแบตเตอรี่ + Load จริงจาก SmartLogger)
 
-// ---------------- ข้อมูลระบบจริงจากรายงาน PVsyst V8.1.5 + SLD (โปรเจกต์ LTK, แบบมีแบตเตอรี่) ----------------
+// ---------------- ข้อมูลระบบจริงจากรายงาน PVsyst V8.1.5 + SLD (โปรเจกต์ LTK, แบตเตอรี่ 8 ยูนิต + โหลดจริงจาก SmartLogger) ----------------
 const PROJECT_INFO = {
   name: "LTK Project", location: "ปากช่อง, นครราชสีมา", lat: 14.8119, lon: 101.5397, altitude: 287,
   tilt: 4.7, azimuth: 0, capacityKWp: 43.3,
@@ -140,12 +140,12 @@ const PROJECT_INFO = {
   batteryReal: "Huawei LUNA2000 — 3 Power Module + 8 Battery Module",
   batterySim: "Li-Ion 41.0 kWh (ใช้ได้จริง 30.7 kWh, SOC 20–95%, 8 ยูนิต 51V 800Ah)",
   batteryStrategy: "Self-consumption",
-  pnomRatio: 1.44, annualYield: 1563.6, designPR: TARGET_PR, solarFraction: 99.52,
+  pnomRatio: 1.44, annualYield: 1497.0, designPR: TARGET_PR, solarFraction: 45.58,
 };
-// EArray รายเดือน (kWh) จากผลจำลอง PVsyst แบบมีแบตเตอรี่ (รายงานฉบับแก้ไข) — ใช้เป็นเป้าหมาย "พลังงานผลิต (Design)"
-const MONTHLY_DESIGN_KWH_REPORT = [5915, 5628, 6501, 6275, 5919, 5545, 5385, 5218, 5103, 5377, 5220, 5618];
-// E_User รายเดือน (kWh) — พลังงานที่จ่ายให้ผู้ใช้ (โหลด) ใช้เป็นเป้าหมาย "โหลด (Design)" ไม่ใช่ค่าที่วัดจริง
-const MONTHLY_USER_KWH_REPORT = [1115, 1086, 1151, 1139, 1200, 1088, 1149, 1179, 1081, 1177, 1124, 1142];
+// EArray รายเดือน (kWh) จากผลจำลอง PVsyst ฉบับล่าสุด (แบตเตอรี่ 8 ยูนิต + โหลดจริงจาก SmartLogger) — ใช้เป็นเป้าหมาย "พลังงานผลิต (Design)"
+const MONTHLY_DESIGN_KWH_REPORT = [5659, 5381, 6220, 6020, 5675, 5318, 5154, 5001, 4886, 5150, 4991, 5368];
+// E_User รายเดือน (kWh) จากโหลดจริงที่วัดจาก SmartLogger (ไฟล์ PVsyst_Load_Profile_Actual_SmartLogger_W.csv) — ใช้เป็นเป้าหมาย "โหลด (Design)"
+const MONTHLY_USER_KWH_REPORT = [5219, 6512, 9201, 12979, 10336, 10726, 10695, 10238, 12456, 8678, 6231, 5647];
 const MONTHLY_DESIGN_SHARE = (() => {
   const sum = MONTHLY_DESIGN_KWH_REPORT.reduce((s, v) => s + v, 0);
   return MONTHLY_DESIGN_KWH_REPORT.map((v) => v / sum);
@@ -1260,7 +1260,7 @@ function ThemedTooltip({ active, payload, label, unit }) {
         <div key={i} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.stroke || p.fill }} />
           <span style={{ color: "var(--text-muted)" }}>{p.name}:</span>
-          <span className="mono" style={{ color: "var(--text)" }}>{p.value}{unit}</span>
+          <span className="mono" style={{ color: "var(--text)" }}>{fmt(p.value, 1)}{unit}</span>
         </div>
       ))}
     </div>
@@ -1280,7 +1280,7 @@ function HourlyFaultTooltip({ active, payload, label, dayAlarms, day }) {
         <div key={i} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.stroke || p.fill }} />
           <span style={{ color: "var(--text-muted)" }}>{p.name}:</span>
-          <span className="mono" style={{ color: "var(--text)" }}>{p.value}kW</span>
+          <span className="mono" style={{ color: "var(--text)" }}>{fmt(p.value, 1)}kW</span>
         </div>
       ))}
       {hourAlarms.length > 0 && (
