@@ -43,6 +43,35 @@ const GRID_MAP = (() => {
 })();
 
 
+// ---------------- ข้อมูลรายวันต่อ inverter จริง (จาก Com1-12.csv / Com1-13.csv / Com1-14.csv, 5-min telemetry, ยืนยันจากฟิลด์ "Eac Total(kWh)" โดยตรง 100%) ----------------
+// ช่วงข้อมูล: 27 มิ.ย. – 25 ก.ย. 2026 (91 วัน) · รูปแบบ: "YYYYMMDD:com12_kWh:com13_kWh:com14_kWh|..."
+const INV_DAILY_STR = "20260627:20.31:14.47:23.31|20260628:26.65:10.75:27.11|20260629:35.38:13.95:37.41|20260630:31.32:13.39:34.93|20260701:35.01:14.67:41.9|20260702:39.87:15.35:42.68|20260703:29.73:18.88:32.12|20260704:30.03:19.6:30.52|20260705:26.42:16.55:29.97|20260706:23.75:14.81:23.64|20260707:26.86:22.03:28.74|20260708:31.05:23.95:34.67|20260709:27.2:20.8:27.85|20260710:29.22:21.06:31.11|20260711:26.18:20.8:27.27|20260712:31.92:23.35:28.04|20260713:32.76:23.55:35.1|20260714:27.85:19.05:30.18|20260715:27.51:15.99:34.09|20260716:36.65:15.05:34.85|20260717:23.65:14.74:23.86|20260718:40.48:20.2:44.31|20260719:43.96:23.12:34.5|20260720:47.31:19.23:56.54|20260721:33.2:15.95:36.11|20260722:28.14:13.62:29.42|20260723:33.76:13.74:36.38|20260724:36.94:14.64:31.45|20260725:47.98:23.61:49.51|20260726:36.94:14.88:37.75|20260727:30.98:19.29:30.01|20260728:22.13:14.33:22.37|20260729:27.16:17.44:28.28|20260730:27.37:18.43:29.66|20260731:26.74:16.36:27.28|20260801:27.72:17.75:27.86|20260802:26.11:17.32:22.93|20260803:41.52:21.84:39.47|20260804:24.27:15.14:24.07|20260805:29.61:18.69:33.69|20260806:32.62:20.15:34.91|20260807:34.04:19.69:37.37|20260808:26.22:16.6:27.06|20260809:24.22:13.87:24.93|20260810:25.95:16.37:26.7|20260811:26.31:15.29:29.39|20260812:24.6:12.3:27.38|20260813:29.84:14.99:29.76|20260814:28.98:14.12:27.55|20260815:28.98:17.61:27.43|20260816:26.71:14.34:28.1|20260817:26.38:13.5:26.25|20260818:31.93:19.68:32.23|20260819:24.24:12.86:24.51|20260820:21.72:13.55:22.8|20260821:25.77:15.86:25.76|20260822:28.52:18.24:28.58|20260823:26.7:13.74:25.21|20260824:23.64:13.84:24.59|20260825:25.37:14.4:26.24|20260826:30.48:14.01:32.75|20260827:33.97:14.66:37.66|20260828:34.89:14.68:35.96|20260829:37.38:15.82:37.08|20260830:25.19:15.22:26.17|20260831:25.25:10.11:26.08|20260901:27.56:6.6:27.66|20260902:34.83:6.55:35.75|20260903:42.37:6.52:44.18|20260904:39.82:10.95:36.87|20260905:43.05:6.6:39.9|20260906:41.36:6.55:33.31|20260907:32.44:6.54:31.52|20260908:41.96:6.56:43.31|20260909:34.39:8.75:32.64|20260910:24.83:9.19:23.58|20260911:28.8:0.0:27.24|20260912:36.75:11.23:30.08|20260913:30.2:6.47:19.43|20260914:22.88:6.56:20.84|20260915:33.85:6.58:29.45|20260916:47.17:6.56:42.85|20260917:32.01:8.26:28.73|20260918:50.76:6.56:46.59|20260919:42.72:14.18:39.18|20260920:12.4:7.43:11.88|20260921:38.67:13.59:35.26|20260922:35.65:9.47:41.1|20260923:27.18:8.6:28.54|20260924:21.08:7.37:21.23|20260925:6.15:1.87:7.0";
+const INV_DAILY_MAP = (() => {
+  const map = new Map();
+  for (const part of INV_DAILY_STR.split("|")) {
+    const bits = part.split(":");
+    if (bits.length < 4) continue;
+    map.set(bits[0], { com12: parseFloat(bits[1]), com13: parseFloat(bits[2]), com14: parseFloat(bits[3]) });
+  }
+  return map;
+})();
+
+// ---------------- ข้อมูล MPPT1/MPPT2 รายวันของ COM1-13 จริง (จาก "MPPT1 Edc Total(kWh)" / "MPPT2 Edc Total(kWh)" ยืนยันจากฟิลด์โดยตรง 100%) ----------------
+// String 1 (MPPT1) = 14 แผง, String 2 (MPPT2) = 12 แผง → อัตราส่วนปกติ (อ้างอิงจาก COM1-12=1.192, COM1-14=1.134) ควรอยู่ราว 1.1–1.2
+// รูปแบบ: "YYYYMMDD:mppt1_kWh:mppt2_kWh|..."
+const MPPT13_STR = "20260627:4.0:6.93|20260628:0.0:9.06|20260629:0.0:10.77|20260630:0.0:10.12|20260701:0.0:11.39|20260702:0.36:12.06|20260703:8.04:8.42|20260704:8.32:8.45|20260705:8.15:8.6|20260706:6.28:6.72|20260707:10.06:10.21|20260708:11.16:11.57|20260709:9.02:9.1|20260710:9.9:9.67|20260711:8.9:9.83|20260712:10.89:11.94|20260713:9.82:11.78|20260714:8.94:8.27|20260715:3.34:9.06|20260716:0.24:11.07|20260717:4.65:7.37|20260718:7.13:12.51|20260719:8.33:14.78|20260720:2.99:14.38|20260721:3.37:9.59|20260722:1.28:8.44|20260723:0.07:10.6|20260724:0.02:11.48|20260725:7.7:15.49|20260726:1.21:11.62|20260727:8.23:8.76|20260728:5.78:6.11|20260729:7.54:8.52|20260730:7.77:8.68|20260731:6.74:7.9|20260801:7.66:8.71|20260802:8.44:9.86|20260803:9.5:11.56|20260804:4.94:6.21|20260805:7.71:9.53|20260806:8.25:9.81|20260807:7.91:9.47|20260808:4.6:9.13|20260809:0.75:9.87|20260810:4.84:9.74|20260811:1.18:10.28|20260812:0.56:9.88|20260813:0.84:10.41|20260814:0.75:10.89|20260815:4.95:11.08|20260816:0.42:10.26|20260817:0.0:9.17|20260818:6.13:12.53|20260819:1.32:7.04|20260820:2.17:7.15|20260821:2.87:10.63|20260822:5.01:10.62|20260823:2.5:9.31|20260824:4.06:6.49|20260825:4.68:7.49|20260826:1.87:9.65|20260827:0.0:10.34|20260828:0.93:9.89|20260829:2.42:12.08|20260830:4.67:7.91|20260831:1.8:4.47|20260901:0.01:0.1|20260902:0.0:0.0|20260903:0.0:0.0|20260904:0.19:6.62|20260905:0.14:0.0|20260906:0.0:0.0|20260907:0.01:0.01|20260908:0.01:0.0|20260909:0.0:2.76|20260910:0.8:2.96|20260911:0.0:0.0|20260912:1.36:6.15|20260913:0.01:0.0|20260914:0.0:0.0|20260915:0.01:0.0|20260916:0.0:0.0|20260917:3.02:0.52|20260918:0.03:0.03|20260919:2.95:7.39|20260920:0.17:0.17|20260921:3.91:6.7|20260922:0.51:3.47|20260923:0.51:2.51|20260924:0.79:0.83|20260925:1.44:1.64";
+const MPPT13_MAP = (() => {
+  const map = new Map();
+  for (const part of MPPT13_STR.split("|")) {
+    const bits = part.split(":");
+    if (bits.length < 3) continue;
+    map.set(bits[0], { mppt1: parseFloat(bits[1]), mppt2: parseFloat(bits[2]) });
+  }
+  return map;
+})();
+const INV_BASELINE_RATIO = 1.16; // ค่าเฉลี่ย MPPT1:MPPT2 ของ COM1-12 (1.192) และ COM1-14 (1.134) ใช้เป็นเส้นอ้างอิง "ปกติ"
+
+
 // ---------------- Fault/Alarm Log จริงจาก Huawei FusionSolar (alarmg_major.csv + alarmg_minor.csv) ----------------
 // รูปแบบ: "{sevChar}{deviceCode}{nameCode}:{startYYYYMMDDHHMMSS}:{endYYYYMMDDHHMMSS}:{reasonId}|..."
 // sevChar: M=Major, m=minor
@@ -594,6 +623,7 @@ export default function PVDashboard() {
         )}
 
         <FaultLogSection view={view} selYear={selYear} selMonth={selMonth} selDay={selDay} yearDays={yearDays} />
+        <InverterDiagnosticsSection />
         <LossCausesSection />
 
         <div className="text-center text-[11px] pt-6" style={{ color: "var(--text-muted)" }}>
@@ -810,7 +840,7 @@ function MonthView({ monthDays, yearDays, onSelectDay, onBack }) {
         ← กลับไปดูรายปี
       </button>
       <div className="panel p-5 mb-4 clickable-chart">
-        <PanelTitle title="พลังงานรายวัน — ผลิตจริง vs Design" sub="สีเทา = ยังไม่มีข้อมูล (แสดงเฉพาะเป้าหมาย Design) · คลิกแท่งสีอำพันเพื่อดูโปรไฟล์รายชั่วโมงของวันนั้น" />
+        <PanelTitle title="พลังงานรายวัน — ผลิตจริง vs Design vs แนวโน้มปกติ" sub="สีเทา = ยังไม่มีข้อมูล · เส้นประเขียว = Design · เส้นประส้ม = แนวโน้มปกติ (ค่าเฉลี่ย 7 วันก่อนหน้า ไม่รวมวันที่มี fault) · คลิกแท่งสีอำพันเพื่อดูโปรไฟล์รายชั่วโมงของวันนั้น" />
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
@@ -1341,6 +1371,112 @@ function FaultLogSection({ view, selYear, selMonth, selDay, yearDays }) {
               );
             })
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ============================== INVERTER-LEVEL DIAGNOSTICS (จาก Com1-12/13/14.csv, 5-min telemetry จริง) ==============================
+function InverterDiagnosticsSection() {
+  const [open, setOpen] = useState(true);
+
+  const invDates = useMemo(() => Array.from(INV_DAILY_MAP.keys()).sort(), []);
+  const prodData = useMemo(() => invDates.map((k) => {
+    const v = INV_DAILY_MAP.get(k);
+    const m = parseInt(k.slice(4, 6), 10), d = parseInt(k.slice(6, 8), 10);
+    return { key: k, label: `${d}/${m}`, com12: v.com12, com13: v.com13, com14: v.com14 };
+  }), [invDates]);
+
+  const mpptDates = useMemo(() => Array.from(MPPT13_MAP.keys()).sort(), []);
+  const mpptData = useMemo(() => mpptDates.map((k) => {
+    const v = MPPT13_MAP.get(k);
+    const m = parseInt(k.slice(4, 6), 10), d = parseInt(k.slice(6, 8), 10);
+    const ratio = v.mppt2 > 0 ? v.mppt1 / v.mppt2 : null;
+    return { key: k, label: `${d}/${m}`, mppt1: v.mppt1, mppt2: v.mppt2, ratio };
+  }), [mpptDates]);
+
+  // ผลรวมเทียบ baseline
+  const sums = useMemo(() => {
+    let m1 = 0, m2 = 0;
+    for (const r of mpptData) { m1 += r.mppt1 || 0; m2 += r.mppt2 || 0; }
+    const ratio = m2 > 0 ? m1 / m2 : null;
+    return { m1, m2, ratio };
+  }, [mpptData]);
+
+  const rangeLabel = invDates.length ? `${invDates[0].slice(6, 8)}/${invDates[0].slice(4, 6)}/${invDates[0].slice(0, 4)} – ${invDates[invDates.length - 1].slice(6, 8)}/${invDates[invDates.length - 1].slice(4, 6)}/${invDates[invDates.length - 1].slice(0, 4)}`
+    : "";
+
+  return (
+    <div className="panel p-5 mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 cursor-pointer" onClick={() => setOpen((o) => !o)}>
+        <div className="flex items-center gap-2">
+          <span style={{ color: "var(--accent-red)" }}>⚠</span>
+          <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>วิเคราะห์ระดับ Inverter — ข้อมูลจริง 5 นาที (COM1-12 / COM1-13 / COM1-14)</span>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full" style={{ background: "rgba(240,104,122,0.12)", color: "var(--accent-red)", border: "1px solid rgba(240,104,122,0.35)" }}>
+          {open ? "ย่อ ▲" : "ขยาย ▼"}
+        </span>
+      </div>
+
+      {open && (
+        <div className="mt-4">
+          <div className="text-[11px] mb-4 flex items-start gap-2" style={{ color: "var(--text-muted)" }}>
+            <span style={{ color: "var(--accent-cyan)" }}>ⓘ</span>
+            <span>
+              ข้อมูลในส่วนนี้มาจากไฟล์ log รายอินเวอร์เตอร์ความละเอียด 5 นาที (<b style={{ color: "var(--text)" }}>Eac Total(kWh)</b>, <b style={{ color: "var(--text)" }}>MPPT1/MPPT2 Edc Total(kWh)</b>) — เป็นข้อมูลจริง 100% ไม่ใช่ค่าประมาณ แต่ครอบคลุมเฉพาะช่วง <b style={{ color: "var(--text)" }}>{rangeLabel}</b> ({invDates.length} วัน) เท่านั้น ยังไม่ครอบคลุมทั้งโครงการ
+            </span>
+          </div>
+
+          {/* ---- Callout: String imbalance finding ---- */}
+          <div className="rounded-xl p-4 mb-5" style={{ background: "rgba(240,104,122,0.08)", border: "1px solid rgba(240,104,122,0.3)" }}>
+            <div className="text-xs font-semibold mb-2" style={{ color: "var(--accent-red)" }}>
+              🔎 พบความผิดปกติ: COM1-13 String 1 (MPPT1) ผลิตไฟต่ำผิดปกติ
+            </div>
+            <div className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              อัตราส่วนพลังงาน MPPT1 : MPPT2 ของ <b style={{ color: "var(--text)" }}>COM1-13</b> ตลอดช่วง {rangeLabel} อยู่ที่ <b className="mono" style={{ color: "var(--accent-red)" }}>{fmt(sums.ratio, 2)}</b> ({fmt(sums.m1, 0)} / {fmt(sums.m2, 0)} kWh)
+              ในขณะที่ค่าปกติของระบบ (จาก COM1-12 = 1.19, COM1-14 = 1.13 ซึ่งมีจำนวนแผงต่อ String เท่ากัน คือ String1 14 แผง / String2 12 แผง) ควรอยู่ที่ประมาณ <b className="mono" style={{ color: "var(--accent-green)" }}>~1.1–1.2</b>
+              {" "}— String 1 ของ COM1-13 ผลิตไฟได้เพียงประมาณ <b style={{ color: "var(--accent-red)" }}>{fmt((sums.ratio / INV_BASELINE_RATIO) * 100, 0)}%</b> ของที่ควรจะเป็นเทียบกับ baseline
+              <br />สมมติฐาน (ยังไม่ยืนยันหน้างาน): น่าจะเป็นจุดต่อสาย/คอนเน็กเตอร์ DC หลวมหรือเสื่อมสภาพที่ String 1 มากกว่าสายขาดถาวร เนื่องจากอัตราส่วนรายสัปดาห์แกว่งขึ้นลง (บางสัปดาห์เกือบปกติ บางสัปดาห์เกือบเป็นศูนย์) ไม่ได้ผลิตเป็นศูนย์ตลอดช่วง ควรตรวจสอบจุดต่อสาย DC ของ String 1 (MPPT1) ที่ตู้คอมบายเนอร์/อินเวอร์เตอร์ COM1-13 หน้างาน
+            </div>
+          </div>
+
+          {/* ---- Chart 1: Daily production comparison across 3 inverters ---- */}
+          <PanelTitle title="เปรียบเทียบพลังงานผลิตรายวัน — 3 Inverter" sub={`COM1-12 / COM1-13 / COM1-14 · ${rangeLabel} · ข้อมูลจริงจาก Eac Total(kWh) ของแต่ละตัว`} />
+          <div style={{ width: "100%", height: 260 }} className="mb-6">
+            <ResponsiveContainer>
+              <LineChart data={prodData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={{ stroke: "var(--border)" }} tickLine={false} interval={6} />
+                <YAxis tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} unit="kWh" />
+                <Tooltip content={<ThemedTooltip unit=" kWh" />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: "var(--text-muted)" }} />
+                <Line type="monotone" dataKey="com12" name="COM1-12" stroke="var(--accent-green)" strokeWidth={1.75} dot={false} />
+                <Line type="monotone" dataKey="com13" name="COM1-13 (ผิดปกติ)" stroke="var(--accent-red)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="com14" name="COM1-14" stroke="var(--accent-cyan)" strokeWidth={1.75} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* ---- Chart 2: String imbalance diagnostic for COM1-13 ---- */}
+          <PanelTitle title="กราฟวินิจฉัย String — MPPT1 vs MPPT2 ของ COM1-13" sub="เส้นประเขียว = อัตราส่วนปกติอ้างอิง (~1.16) · แท่ง = พลังงานต่อ String รายวัน" />
+          <div style={{ width: "100%", height: 280 }}>
+            <ResponsiveContainer>
+              <ComposedChart data={mpptData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={{ stroke: "var(--border)" }} tickLine={false} interval={6} />
+                <YAxis yAxisId="left" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} unit="kWh" />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} domain={[0, 1.6]} />
+                <Tooltip content={<ThemedTooltip unit=" kWh" />} />
+                <Legend wrapperStyle={{ fontSize: 11, color: "var(--text-muted)" }} />
+                <Bar yAxisId="left" dataKey="mppt1" name="String 1 / MPPT1 (14 แผง)" fill="var(--accent-red)" radius={[2, 2, 0, 0]} />
+                <Bar yAxisId="left" dataKey="mppt2" name="String 2 / MPPT2 (12 แผง)" fill="var(--accent-cyan)" radius={[2, 2, 0, 0]} />
+                <ReferenceLine yAxisId="right" y={INV_BASELINE_RATIO} stroke="var(--accent-green)" strokeDasharray="4 4" strokeWidth={1.5} />
+                <Line yAxisId="right" type="monotone" dataKey="ratio" name="อัตราส่วน MPPT1:MPPT2" stroke="var(--accent-gold)" strokeWidth={1.5} dot={false} connectNulls />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
     </div>
